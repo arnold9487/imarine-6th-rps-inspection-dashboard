@@ -89,32 +89,37 @@ function forceTop(ct,ms,margin,floor=0){
   return {ct,idx:Math.round((ms-START)/3600e3),ppi:p,rps:+rps(ct,ms).toFixed(3),nd:tgt.nd,ship:tgt.cn};
 }
 
-// === 場景1:白天壅塞尖峰(9–18h 單一 CT 最高 PPI,純壅塞驅動,不注入)===
-let peakIdx=12, peakP=0;
+// === 場景1:壅塞尖峰(9–18h 單一 CT 最高 PPI,純壅塞驅動,不注入)===
+let peakIdx=12, peakP=0, peakCT=null;
 for(let i=0;i<HOURS;i++){ if(HH(START+i*3600e3)<9||HH(START+i*3600e3)>18)continue;
-  for(const ct of CTS){const p=ppi(ct,START+i*3600e3);if(p>peakP){peakP=p;peakIdx=i;}}}
+  for(const ct of CTS){const p=ppi(ct,START+i*3600e3);if(p>peakP){peakP=p;peakIdx=i;peakCT=ct;}}}
 
-// === 場景2:傍晚破損翻轉(16–22h,挑一個「非 PPI 榜首、但注入後可翻上第一」且所需異常最小的中心)===
+// === 場景2:破損翻轉(午後 11–16h 壓力接近的時段;主角須「非尖峰中心 CT」且注入成本最小)===
+// 傍晚 CT7 一枝獨秀無法自然翻轉;午後 CT2/CT3/CT6 擠成一團,差距小、翻轉真實。
 let flip=null,flipCost=1e9;
-for(let i=0;i<HOURS;i++){const ms=START+i*3600e3;if(HH(ms)<16||HH(ms)>22)continue;
+for(let i=0;i<HOURS;i++){const ms=START+i*3600e3;if(HH(ms)<11||HH(ms)>16)continue;
   const active=CTS.filter(c=>ppi(c,ms)>0).sort((a,b)=>ppi(b,ms)-ppi(a,ms));
   if(active.length<3)continue;
   const top=active[0];
   for(const ct of active.slice(1,4)){                    // 第2~4名當翻轉主角
-    const p=ppi(ct,ms); if(p<0.15||p>=ppi(top,ms))continue;
+    if(ct===peakCT)continue;                             // 主角不能是尖峰那個中心
+    const p=ppi(ct,ms); if(p<0.30||p>=ppi(top,ms))continue;
     const need=((rps(top,ms)*1.15)/p-1)/BETA - dscore(ct,ms);   // 還差多少 D_score
     if(need>0 && need<flipCost && need<45){ flipCost=need; flip={idx:i,ct,ms,topCT:top}; }
   }}
 
-// === 場景3:深夜異常批次衝頂(1–5h、視窗中段,低 PPI 且有船在泊且該船停留數小時)===
+// === 場景3:深夜異常批次衝頂(1–5h、視窗中段,低 PPI 且有船在泊且該船停留數小時;盡量換不同中心)===
 let night=null;
-for(let i=6;i<HOURS-2;i++){const ms=START+i*3600e3;const h=HH(ms);if(h<1||h>5)continue;
-  for(const ct of CTS){const pr=present(ct,ms);const p=ppi(ct,ms);
-    if(pr.length>=1 && p>0 && p<0.18){
-      const dur=Math.max(...pr.map(v=>(v.eMs-ms)/3600e3));   // 最長還會停幾小時
-      if(dur>=2){ night={idx:i,ct,ms}; break; }
-    }}
-  if(night)break;}
+for(let pass=0; pass<2 && !night; pass++){          // 第一輪避開翻轉主角,不行再放寬
+  for(let i=6;i<HOURS-2 && !night;i++){const ms=START+i*3600e3;const h=HH(ms);if(h<1||h>5)continue;
+    for(const ct of CTS){
+      if(pass===0 && flip && ct===flip.ct)continue;
+      const pr=present(ct,ms);const p=ppi(ct,ms);
+      if(pr.length>=1 && p>0 && p<0.18){
+        const dur=Math.max(...pr.map(v=>(v.eMs-ms)/3600e3));   // 最長還會停幾小時
+        if(dur>=2){ night={idx:i,ct,ms}; break; }
+      }}
+  }}
 
 // ---- 注入兩幕異常,並自我驗證 ----
 const report=[];
