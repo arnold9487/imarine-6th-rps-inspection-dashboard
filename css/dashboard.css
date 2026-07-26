@@ -1,0 +1,105 @@
+/* ===== 動態風險巡檢決策儀表盤 ===== */
+:root{
+  --bg:#0e1420; --bg2:#151d2c; --panel:#1a2436; --panel2:#212d42;
+  --bd:#2c3a54; --text:#e8eef7; --dim:#93a1b8; --muted:#6c7a93;
+  --accent:#4f8cff; --accent2:#7aa7ff;
+  --ppi0:#3b82f6; --ppi1:#f59e0b; --ppi2:#ef4444;
+  --dmg:#ff6b6b; --rps:#ffd166; --good:#34d399;
+  --r:12px; --sh:0 10px 30px rgba(0,0,0,.35);
+  font-synthesis:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:radial-gradient(1200px 600px at 70% -10%, #1b2740 0%, var(--bg) 60%) fixed, var(--bg);
+  color:var(--text);
+  font-family:"Noto Sans TC",system-ui,-apple-system,"Microsoft JhengHei","PingFang TC",sans-serif;
+  padding:22px clamp(14px,3vw,40px);
+}
+/* 限寬置中:避免寬螢幕攤太開、截圖鬆散 */
+header.top, .timebar, .table-wrap, footer.note{
+  max-width:1040px; margin-left:auto; margin-right:auto;
+}
+
+/* 頁首 */
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.brand h1{margin:0;font-size:clamp(19px,2.4vw,26px);letter-spacing:.5px}
+.brand .sub{color:var(--dim);font-size:13px;margin-top:4px}
+.formula{
+  background:var(--panel);border:1px solid var(--bd);border-radius:var(--r);
+  padding:10px 14px;font-size:13px;color:var(--dim);box-shadow:var(--sh)
+}
+.formula b{color:var(--rps)} .formula code{color:var(--accent2);font-size:13px}
+
+/* 時間控制列 */
+.timebar{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:var(--panel);border:1px solid var(--bd);border-radius:var(--r);
+  padding:12px 16px;margin-bottom:16px;box-shadow:var(--sh)
+}
+.clock{font-variant-numeric:tabular-nums;font-size:20px;font-weight:700;min-width:190px}
+.clock .dow{color:var(--dim);font-size:14px;font-weight:500;margin-left:6px}
+.timebar input[type=range]{flex:1;min-width:220px;accent-color:var(--accent)}
+.btn{
+  background:var(--panel2);color:var(--text);border:1px solid var(--bd);
+  border-radius:9px;padding:8px 14px;font-size:14px;cursor:pointer;transition:.15s
+}
+.btn:hover{border-color:var(--accent);color:var(--accent2)}
+.btn.play{min-width:52px;font-size:16px}
+.speed{background:var(--panel2);color:var(--text);border:1px solid var(--bd);border-radius:9px;padding:8px;font-size:13px}
+.scene-btns{display:flex;gap:8px}
+.scene-btns .btn{font-size:12.5px;padding:7px 10px}
+
+/* 表格 */
+.table-wrap{
+  background:var(--panel);border:1px solid var(--bd);border-radius:var(--r);
+  box-shadow:var(--sh);overflow:auto
+}
+table{border-collapse:collapse;width:100%;min-width:760px}
+thead th{
+  position:sticky;top:0;background:var(--bg2);color:var(--dim);
+  font-size:12px;font-weight:600;text-align:right;padding:11px 10px;
+  border-bottom:1px solid var(--bd);white-space:nowrap;z-index:2
+}
+thead th.lft{text-align:left}
+tbody td{padding:10px 10px;text-align:right;font-variant-numeric:tabular-nums;
+  border-bottom:1px solid rgba(44,58,84,.5);font-size:14px}
+tbody td.lft{text-align:left}
+tbody tr{transition:transform .45s cubic-bezier(.2,.7,.2,1),background .3s}
+tbody tr:hover{background:rgba(79,140,255,.06)}
+
+.rank{font-weight:800;color:var(--muted);width:44px}
+tr.top .rank{color:var(--rps)}
+.ctname{font-weight:600}
+.ctname small{color:var(--muted);font-weight:400;margin-left:6px;font-size:12px}
+
+/* PPI 膠囊 */
+.ppi-cell{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end;min-width:96px}
+.ppi-bar{width:56px;height:7px;border-radius:4px;background:#26324a;overflow:hidden}
+.ppi-bar i{display:block;height:100%;border-radius:4px}
+.ppi-val{min-width:38px}
+
+.dmg{color:var(--dim)} .dmg.hot{color:var(--dmg);font-weight:700}
+.dscore{color:var(--accent2)}
+
+/* RPS 主角欄 */
+.rps-cell{font-weight:800;font-size:17px;color:var(--rps)}
+tr:not(.top) .rps-cell{color:#e7c15f}
+.rps-wrap{display:inline-flex;align-items:center;gap:9px;justify-content:flex-end}
+.rps-bar{width:70px;height:9px;border-radius:5px;background:#2a2140;overflow:hidden}
+.rps-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffb547,#ffd166);border-radius:5px}
+
+/* 榜首整列高亮 */
+tr.top{background:linear-gradient(90deg,rgba(255,209,102,.14),rgba(255,209,102,.02))}
+tr.top td{border-bottom-color:rgba(255,209,102,.25)}
+
+/* 警報脈動 */
+.alert-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--dmg);
+  margin-right:7px;box-shadow:0 0 0 0 rgba(255,107,107,.6);animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,107,107,.55)}70%{box-shadow:0 0 0 9px rgba(255,107,107,0)}100%{box-shadow:0 0 0 0 rgba(255,107,107,0)}}
+
+footer.note{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.7}
+footer.note b{color:var(--dim)}
+.kpi{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.kpi span{background:var(--panel2);border:1px solid var(--bd);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--dim)}
+.kpi b{color:var(--text)}

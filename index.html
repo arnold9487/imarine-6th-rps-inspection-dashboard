@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>動態風險巡檢決策儀表盤 — RPS</title>
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>動態風險巡檢決策儀表盤</h1>
+    <div class="sub">高雄港 · 各貨櫃中心即時風險巡檢分數(RPS)排名 · 隨時間動態變化</div>
+  </div>
+  <div class="formula">
+    <b>RPS</b> = PPI × ( 1 + β · D_score )
+    <code id="beta-label">β = 0.02</code>　·　PPI = 小船等量 / 泊靠上限　·　D_score = Σ 在泊貨櫃破損信心
+  </div>
+</header>
+
+<div class="timebar">
+  <div class="clock"><span id="clock">—</span><span class="dow" id="dow"></span></div>
+  <button class="btn play" id="play" title="播放/暫停">▶</button>
+  <select class="speed" id="speed" title="播放速度">
+    <option value="700">慢</option>
+    <option value="320" selected>中</option>
+    <option value="120">快</option>
+  </select>
+  <input type="range" id="slider" min="0" max="71" value="12" step="1">
+  <div class="scene-btns">
+    <button class="btn" data-jump="peak">▮ 白天尖峰</button>
+    <button class="btn" data-jump="flip">⚡ 傍晚翻轉</button>
+    <button class="btn" data-jump="night">★ 深夜衝頂</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="lft">排名</th>
+        <th class="lft">貨櫃中心</th>
+        <th>在泊船數</th>
+        <th>小船等量</th>
+        <th>泊靠上限</th>
+        <th>PPI</th>
+        <th>TEU</th>
+        <th>破損櫃數</th>
+        <th>D_score<br><small style="color:var(--muted)">Σ信心</small></th>
+        <th>RPS</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<footer class="note">
+  <div class="kpi" id="kpi"></div>
+  <div style="margin-top:8px">
+    <b>資料來源</b>：壓力(PPI)為 TPNET 全年進出港紀錄實算;破損信心為 YOLO11s 模型對 SeaFront 測試集(2,480 張)之<b>真實推論輸出</b>。
+    破損影像為代表性樣本、到港排程為情境模擬 —— 每艘船依船型設 TEU(大 900 / 中 600 / 小 300),破損率 1.5% 決定預期壞櫃數,每壞櫃之信心值自真實推論池隨機抽取。
+  </div>
+</footer>
+
+<script src="data/inspections.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
