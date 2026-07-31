@@ -74,15 +74,17 @@ const lbl=idx=>{const ms=START+idx*3600e3;return `6/${DD(ms)} ${String(HH(ms)).p
 // 把某船改成「異常高破損批次」,信心自高信心池抽,直到 dsum≥target(有上限)
 function makeAnomaly(v,target){
   v.nd=0; v.dsum=0;
-  while(v.dsum<target && v.nd<90){ v.dsum+=pick(HIPOOL); v.nd++; }
+  while(v.dsum<target && v.nd<150){ v.dsum+=pick(HIPOOL); v.nd++; }
   v.dsum=+v.dsum.toFixed(3);
 }
 // 讓 ct 在 ms 這一刻的 RPS 超過其他所有 CT(乘 margin);把需求灌到該 CT 最大的在泊船
 // floor:D_score 下限,確保注入是「有份量的異常批次」而非剛好壓過
-function forceTop(ct,ms,margin,floor=0){
+function forceTop(ct,ms,margin,floor=0,pred=null){
   const p=ppi(ct,ms); if(p<=0) return null;
   const need=((topOtherRps(ct,ms)*margin)/p - 1)/BETA;    // 需要的 D_score
-  const ships=present(ct,ms).sort((a,b)=>(TEU[b.size]-TEU[a.size]));
+  let ships=present(ct,ms);
+  if(pred){const f=ships.filter(pred); if(f.length) ships=f;}  // 場景隔離:只灌不影響另一幕時刻的船
+  ships=ships.slice().sort((a,b)=>(TEU[b.size]-TEU[a.size]));
   const tgt=ships[0]; if(!tgt) return null;
   const others=present(ct,ms).filter(v=>v!==tgt).reduce((s,v)=>s+v.dsum,0);
   makeAnomaly(tgt, Math.max(Math.max(0,need-others)+2, floor));
@@ -110,23 +112,44 @@ for(let i=0;i<HOURS;i++){const ms=START+i*3600e3;if(HH(ms)<11||HH(ms)>16)continu
 
 // === 場景3:深夜異常批次衝頂(1–5h、視窗中段,低 PPI 且有船在泊且該船停留數小時;盡量換不同中心)===
 let night=null;
-for(let pass=0; pass<2 && !night; pass++){          // 第一輪避開翻轉主角,不行再放寬
-  for(let i=6;i<HOURS-2 && !night;i++){const ms=START+i*3600e3;const h=HH(ms);if(h<1||h>5)continue;
+{ // 收集所有可行候選(深夜低壓 + 有隔離船 + 打得贏),優先「非翻轉主角、壓力最低」者
+  const cands=[];
+  for(let i=6;i<HOURS-2;i++){const ms=START+i*3600e3;const h=HH(ms);if(h>5&&h<23)continue;   // 23–05h
     for(const ct of CTS){
-      if(pass===0 && flip && ct===flip.ct)continue;
       const pr=present(ct,ms);const p=ppi(ct,ms);
-      if(pr.length>=1 && p>0 && p<0.18){
-        const dur=Math.max(...pr.map(v=>(v.eMs-ms)/3600e3));   // 最長還會停幾小時
-        if(dur>=2){ night={idx:i,ct,ms}; break; }
-      }}
-  }}
+      if(pr.length<1||p<=0||p>=0.30)continue;
+      // 注入目標:還會停 ≥2h 即可(深夜幕先注入、翻轉幕最後校準,會自動吸收其影響)
+      const iso=pr.filter(v=>(v.eMs-ms)/3600e3>=2);
+      if(!iso.length)continue;
+      // 可行性:壓過當時自然第一名所需的 D_score 必須在異常批次上限內
+      const needD=((topOtherRps(ct,ms)*1.25)/p-1)/BETA - dscore(ct,ms);
+      if(needD>=120)continue;
+      cands.push({idx:i,ct,ms,p,avoid:(flip&&ct===flip.ct)?1:0});
+    }}
+  cands.sort((a,b)=>a.avoid-b.avoid || a.p-b.p);
+  night=cands[0]||null;
+}
 
 // ---- 注入兩幕異常,並自我驗證 ----
 const report=[];
-if(flip){ const r=forceTop(flip.ct,flip.ms,1.15);
-  report.push(`傍晚翻轉 ⚡ ${flip.ct}(原 PPI 第 ${CTS.filter(c=>ppi(c,flip.ms)>ppi(flip.ct,flip.ms)).length+1} 名) @ ${lbl(flip.idx)} → 注入後 RPS ${r.rps}(壞櫃 ${r.nd}),壓過 ${flip.topCT}`); }
-if(night){ const r=forceTop(night.ct,night.ms,1.25,32);   // 下限 D_score≥32:真正的異常批次
+// 注入順序:先深夜幕(只挑翻轉時刻之後才進港的船,保證不回頭影響翻轉那一刻),
+// 最後校準翻轉幕(面對的是最終全局狀態,校準必然成立)
+// 場景隔離:深夜幕只需「還會停 ≥2h」;翻轉幕嚴格只灌「深夜前就離港」的船
+// (順序=深夜先注入、翻轉最後校準 → 翻轉自動吸收深夜影響;反向則靠 flipPred 隔離)
+const nightPred = v=>!night||(v.eMs-night.ms)>=2*3600e3;
+const flipPred  = v=>!night||v.eMs<=night.ms;
+if(night){ const r=forceTop(night.ct,night.ms,1.25,32, nightPred);   // 下限 D_score≥32:真正的異常批次
   report.push(`深夜衝頂 ★ ${night.ct} @ ${lbl(night.idx)} PPI ${(ppi(night.ct,night.ms)*100).toFixed(0)}% → 注入異常批次後 RPS ${r.rps}(壞櫃 ${r.nd})`); }
+if(flip){ const r=forceTop(flip.ct,flip.ms,1.15,0, flipPred);
+  report.push(`傍晚翻轉 ⚡ ${flip.ct}(原 PPI 第 ${CTS.filter(c=>ppi(c,flip.ms)>ppi(flip.ct,flip.ms)).length+1} 名) @ ${lbl(flip.idx)} → 注入後 RPS ${r.rps}(壞櫃 ${r.nd}),壓過 ${flip.topCT}`); }
+
+// 保險:若仍互相影響,重新加壓(隔離謂詞保證收斂)
+for(let k=0;k<4;k++){
+  let again=false;
+  if(night && rankOf(night.ct,night.ms)!==1){ forceTop(night.ct,night.ms,1.25,32, nightPred); again=true; }
+  if(flip && rankOf(flip.ct,flip.ms)!==1){ forceTop(flip.ct,flip.ms,1.15,0, flipPred); again=true; }
+  if(!again) break;
+}
 
 // 驗證兩幕主角確實是該時刻 RPS 第一
 function rankOf(ct,ms){return CTS.map(c=>[c,rps(c,ms)]).sort((a,b)=>b[1]-a[1]).findIndex(x=>x[0]===ct)+1;}
